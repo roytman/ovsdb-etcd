@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
 	ovsjson "github.com/roytman/ovsdb-etcd/pkg/json"
 )
 
 type ServOVSDB struct {
 	dbServer DBServer
 }
-
 
 type InitialData struct {
 	Name      string `json:"name"`
@@ -121,7 +121,7 @@ func (s *ServOVSDB) Transact(ctx context.Context, param []interface{}) (interfac
 func (s *ServOVSDB) Cancel(ctx context.Context, param interface{}) (interface{}, error) {
 	fmt.Printf("Cancel %T, %+v\n", param, param)
 
-	return  "{Cancel}", nil
+	return "{Cancel}", nil
 }
 
 // The "monitor" request enables a client to replicate tables or subsets of tables within an OVSDB database by
@@ -135,7 +135,7 @@ func (s *ServOVSDB) Cancel(ctx context.Context, param interface{}) (interface{},
 func (s *ServOVSDB) Monitor(ctx context.Context, param interface{}) (interface{}, error) {
 	fmt.Printf("Monitor %T, %+v\n", param, param)
 
-	return  ovsjson.EmptyStruct{}, nil
+	return ovsjson.EmptyStruct{}, nil
 }
 
 func (s *ServOVSDB) Update(ctx context.Context, param interface{}) (interface{}, error) {
@@ -150,7 +150,7 @@ func (s *ServOVSDB) Monitor_cancel(ctx context.Context, param interface{}) (inte
 	return "{Monitor_cancel}", nil
 }
 
-func (s *ServOVSDB) Lock(ctx context.Context, param interface{}) (interface{}, error){
+func (s *ServOVSDB) Lock(ctx context.Context, param interface{}) (interface{}, error) {
 	fmt.Printf("Lock %T, %+v\n", param, param)
 
 	return "{Lock}", nil
@@ -230,26 +230,67 @@ func (s *ServOVSDB) Monitor_cond(ctx context.Context, param []interface{}) (inte
 	return databases, nil
 }
 
-func (s *ServOVSDB) Monitor_cond_change(ctx context.Context, param interface{}) (interface{}, error){
+func (s *ServOVSDB) Monitor_cond_change(ctx context.Context, param interface{}) (interface{}, error) {
 	fmt.Printf("Monitor_cond_change %T, %+v\n", param, param)
 
 	return "{Monitor_cond_change}", nil
 }
 
+// Enables a client to request changes that happened after a specific transaction id. A client can use this feature
+// to request only latest changes after a server connection reset instead of re-transfer all data from the server again.
+//
+// "params": [<db-name>, <json-value>, <monitor-cond-requests>, <last-txn-id>]
+// The <json-value> parameter is used to match subsequent update notifications to this request.
+// The <monitor-cond-requests> object maps the name of the table to an array of <monitor-cond-request>. Each
+// <monitor-cond-request> is an object with the following members:
+//    	"columns": [<column>*]            optional
+//		"where": [<condition>*]           optional
+//		"select": <monitor-select>        optional
+// <monitor-select> is an object with the following members:
+// 		"initial": <boolean>              optional
+//		"insert": <boolean>               optional
+//		"delete": <boolean>               optional
+//		"modify": <boolean>               optional
+//
+// "result": [<found>, <last-txn-id>, <table-updates2>]
+// The <found> is a boolean value that tells if the <last-txn-id> requested by client is found in server’s history or
+// not. If true, the changes after that version up to current is sent. Otherwise, all data is sent.
+//  The <last-txn-id> is the transaction id that identifies the latest transaction included in the changes in
+//  <table-updates2> of this response, so that client can keep tracking. If there is no change involved in this
+// response, it is the same as the <last-txn-id> in the request if <found> is true, or zero uuid if <found> is false.
+// If the server does not support transaction uuid, it will be zero uuid as well.
 func (s *ServOVSDB) Monitor_cond_since(ctx context.Context, param interface{}) (interface{}, error) {
 	fmt.Printf("Monitor_cond_since %T, %+v\n", param, param)
 
-	return  "{Monitor_cond_since}", nil
+	// TODO implement
+	return []interface{}{false, ovsjson.ZERO_UUID, ovsjson.EmptyStruct{}}, nil
 }
 
-func (s *ServOVSDB) Get_server_id(ctx context.Context, param interface{}) (interface{}, error) {
+// A new RPC method added in Open vSwitch version 2.7.
+// "params": null
+// "result": "<server_id>"
+// <server_id> is JSON string that contains a UUID that uniquely identifies the running OVSDB server process.
+// A fresh UUID is generated when the process restarts.
+func (s *ServOVSDB) Get_server_id(ctx context.Context, param interface{}) (string, error) {
 	fmt.Printf("Get_server_id %+v\n", param)
-	return "{Get_server_id}", nil
+	return s.dbServer.uuid, nil
 }
 
-func (s *ServOVSDB) Set_db_change_aware(ctx context.Context, param interface{}) (interface{}, error){
+// RFC 7047 does not provide a way for a client to find out about some kinds of configuration changes, such as
+// about databases added or removed while a client is connected to the server, or databases changing between read/write
+// and read-only due to a transition between active and backup roles. Traditionally, ovsdb-server disconnects all of
+// its clients when this happens, because this prompts a well-written client to reassess what is available from the
+// server when it reconnects.
+// By itself, this does not suppress ovsdb-server disconnection behavior, because a client might monitor this database
+// without understanding its special semantics. Instead, ovsdb-server provides a special request: <Set_db_change_aware>
+//
+// "params": [<boolean>]
+// If the boolean in the request is true, it suppresses the connection-closing behavior for the current connection,
+// and false restores the default behavior. The reply is always the same:
+// "result": {}
+func (s *ServOVSDB) Set_db_change_aware(ctx context.Context, param interface{}) (interface{}, error) {
 	fmt.Printf("Set_db_change_aware %+v\n", param)
-	return "{Set_db_change_aware}", nil
+	return ovsjson.EmptyStruct{}, nil
 }
 
 func (s *ServOVSDB) Convert(ctx context.Context, param interface{}) (interface{}, error) {

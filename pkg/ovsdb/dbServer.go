@@ -7,10 +7,12 @@ import (
 	"io/ioutil"
 	"strings"
 	"time"
+	"github.com/google/uuid"
 )
 
 type DBServer struct {
 	cli         *clientv3.Client
+	uuid        string
 	schemas     map[string]string
 	schemaTypes map[string]map[string]map[string]string
 }
@@ -28,6 +30,7 @@ func NewDBServer(endpoints []string) (*DBServer, error) {
 	//defer cli.Close()
 	fmt.Println("etcd client is connected")
 	return &DBServer{cli: cli,
+		uuid:       uuid.NewString(),
 		schemas:     make(map[string]string),
 		schemaTypes: make(map[string]map[string]map[string]string)}, nil
 }
