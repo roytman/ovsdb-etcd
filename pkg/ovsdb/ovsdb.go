@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/creachadair/jrpc2"
 	"strconv"
 	"strings"
+	"time"
 
 	ovsjson "github.com/roytman/ovsdb-etcd/pkg/json"
 )
@@ -150,15 +152,56 @@ func (s *ServOVSDB) Monitor_cancel(ctx context.Context, param interface{}) (inte
 	return "{Monitor_cancel}", nil
 }
 
+// The database server supports an arbitrary number of locks, each of which is identified by a client-defined ID.
+// At any given time, each lock may have at most one owner.
+// The database will assign the client ownership of the lock as soon as it becomes available.  When multiple clients
+// request the same lock, they will receive it in first-come, first-served order. The request completes and sends
+// a response quickly, without waiting. The "locked" and "stolen" notifications report asynchronous changes to ownership.
+// "params": [<id>]
+// Returns "result": {"locked": boolean}
 func (s *ServOVSDB) Lock(ctx context.Context, param interface{}) (interface{}, error) {
 	fmt.Printf("Lock %T, %+v\n", param, param)
+	defer notification(ctx)
+	var id string
+	// param is []interface{}, but just in case ...
+	switch param.(type) {
+	case []interface{}:
+		intArray := param.([]interface{})
+		if len(intArray) == 0 {
+			// Error
+			fmt.Printf("Empty params")
+			return []interface{}{"locked", false}, nil
+		} else {
+			id = fmt.Sprintf("%s", intArray[0])
+		}
+	case string:
+		id = param.(string)
+	case interface{}:
+		id = fmt.Sprintf("%s", param)
+	}
+	locked, err := s.dbServer.Lock(ctx context.Context, id)
+	if err != nil {
+		// TODO should we return error ?
+		fmt.Printf("Lock returned error %v\n", err)
+	}
+	return []interface{}{"locked", locked}, nil
+}
 
-	return "{Lock}", nil
+func notification(ctx context.Context) {
+	go func() {
+		for {
+			time.Sleep(3 * time.Second)
+			if err := jrpc2.PushNotify(ctx, "pushback", []string{"hello, friend"}); err != nil {
+				fmt.Printf("notification %v\n", err)
+				return
+
+			}
+		}
+	}()
 }
 
 func (s *ServOVSDB) Unlock(ctx context.Context, param interface{}) (interface{}, error) {
 	fmt.Printf("Unlock %T, %+v\n", param, param)
-
 	return "{Unlock}", nil
 }
 
@@ -271,9 +314,9 @@ func (s *ServOVSDB) Monitor_cond_since(ctx context.Context, param interface{}) (
 // "result": "<server_id>"
 // <server_id> is JSON string that contains a UUID that uniquely identifies the running OVSDB server process.
 // A fresh UUID is generated when the process restarts.
-func (s *ServOVSDB) Get_server_id(ctx context.Context, param interface{}) (string, error) {
+func (s *ServOVSDB) Get_server_id(ctx context.Context, param interface{}) string {
 	fmt.Printf("Get_server_id %+v\n", param)
-	return s.dbServer.uuid, nil
+	return s.dbServer.uuid
 }
 
 // RFC 7047 does not provide a way for a client to find out about some kinds of configuration changes, such as
@@ -288,9 +331,9 @@ func (s *ServOVSDB) Get_server_id(ctx context.Context, param interface{}) (strin
 // If the boolean in the request is true, it suppresses the connection-closing behavior for the current connection,
 // and false restores the default behavior. The reply is always the same:
 // "result": {}
-func (s *ServOVSDB) Set_db_change_aware(ctx context.Context, param interface{}) (interface{}, error) {
+func (s *ServOVSDB) Set_db_change_aware(ctx context.Context, param interface{}) interface{} {
 	fmt.Printf("Set_db_change_aware %+v\n", param)
-	return ovsjson.EmptyStruct{}, nil
+	return ovsjson.EmptyStruct{}
 }
 
 func (s *ServOVSDB) Convert(ctx context.Context, param interface{}) (interface{}, error) {
@@ -304,9 +347,9 @@ func (s *ServOVSDB) Convert(ctx context.Context, param interface{}) (interface{}
 //     	"result": same as "params"
 //     	"error": null
 //		"id": the request "id" member
-func (s *ServOVSDB) Echo(ctx context.Context, param interface{}) (interface{}, error) {
+func (s *ServOVSDB) Echo(ctx context.Context, param interface{}) interface{}{
 	fmt.Printf("Echo param %T %v\n", param, param)
-	return param, nil
+	return param
 }
 
 func NewService(dbServer *DBServer) *ServOVSDB {

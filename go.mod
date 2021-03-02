@@ -3,7 +3,7 @@ module github.com/roytman/ovsdb-etcd
 go 1.15
 
 require (
-	github.com/creachadair/jrpc2 v0.12.0 // indirect
+	github.com/creachadair/jrpc2 v0.12.0
 	github.com/google/uuid v1.2.0
 	github.com/lestrrat-go/jspointer v0.0.0-20181205001929-82fadba7561c // indirect
 	github.com/lestrrat-go/jsref v0.0.0-20181205001954-1b590508f37d // indirect
